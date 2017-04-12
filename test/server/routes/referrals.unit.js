@@ -134,7 +134,7 @@ describe('#referralsRouter', function() {
   });
 
   describe('#sendReferralEmail', () => {
-    it('should return resolve', (done) => {
+    it('should return resolve', () => {
       const mockMarketing = new referrals.storage.models.Marketing({
         user: 'dylan@storj.io',
         referralLink: null
@@ -179,14 +179,20 @@ describe('#referralsRouter', function() {
       _create.resolves(mockReferral);
 
       res.on('end', () => {
-        const data = res._getData();
-        expect(data).to.be.an('array');
-        console.log('end event data', res._getData());
-      })
-
+        expect(res._getData()).to.be.an('object');
+        let data = res._getData();
+        console.log('data', data);
+        expect(1).to.equal(2);
+        console.log('DONE 1');
+        done();
+      });
 
       referrals.sendReferralEmail(req, res);
-      done();
+
+      expect(_create.callCount).to.equal(2);
+      expect(_sendEmail.callCount).to.equal(2);
+      expect(_notCurrent.callCount).to.equal(2);
+      console.log('done 2');
     });
 
     it('should reject if error sending email', (done) => {
