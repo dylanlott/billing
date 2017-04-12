@@ -78,7 +78,6 @@ describe('#referralsRouter', function() {
         .callsArgWith(3, err);
 
       const refs = referrals._sendEmail(sender, recipient, marketing);
-      console.log('error refs', refs);
       expect(refs._settledValue).to.be.instanceOf(Error);
       expect(refs._settledValue.statusCode).to.equal(500);
       expect(refs._settledValue.message).to.equal('Internal mailer error');
@@ -113,7 +112,6 @@ describe('#referralsRouter', function() {
 
       const refs = referrals._createReferral(mockMarketing, email);
       expect(_referral.callCount).to.equal(1);
-      console.log('refs', refs);
       done();
     });
 
@@ -132,7 +130,69 @@ describe('#referralsRouter', function() {
       expect(refs._settledValue.message).to.equal('Panic!');
       expect(refs._settledValue.statusCode).to.equal(400);
       done();
-    })
+    });
   });
+
+  describe('#sendReferralEmail', () => {
+    it('should return resolve', (done) => {
+      const mockMarketing = new referrals.storage.models.Marketing({
+        user: 'dylan@storj.io',
+        referralLink: null
+      });
+
+      const mockReferral = new referrals.storage.models.Referral({
+        sender: {
+          email: 'sender@storj.io',
+          referralLink: 'abc-123',
+          amount_to_credit: 10
+        },
+        recipient: {
+          email: 'recipient@storj.io',
+          amount_to_credit: 10
+        },
+        type: 'email'
+      });
+
+      const req = httpMocks.createRequest({
+        method: 'POST',
+        url: '/referrals/sendReferralEmail',
+        body: {
+          marketing: mockMarketing,
+          emailList: [ 'dylan@storj.io', 'dylan2@storj.io' ]
+        }
+      });
+      const res = httpMocks.createResponse({
+        eventEmitter: EventEmitter,
+        req: req
+      });
+
+      const _notCurrent = sandbox.stub(referrals, '_isNotCurrentUser')
+        .returnsPromise()
+      _notCurrent.resolves();
+
+      const _sendEmail = sandbox.stub(referrals, '_sendEmail')
+        .returnsPromise();
+      _sendEmail.resolves();
+
+      const _create = sandbox.stub(referrals, '_createReferral')
+        .returnsPromise();
+      _create.resolves(mockReferral);
+
+      res.on('end', () => {
+        const data = res._getData();
+        expect(data).to.be.an('array');
+        console.log('end event data', res._getData());
+      })
+
+
+      referrals.sendReferralEmail(req, res);
+      done();
+    });
+
+    it('should reject if error sending email', (done) => {
+
+      done();
+    })
+  })
 
 });
