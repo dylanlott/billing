@@ -55,16 +55,84 @@ describe('#referralsRouter', function() {
         referralLink: 'abc-123'
       });
 
-      const _dispatch = sinon.stub(Mailer.prototype, 'dispatch')
+      const _dispatch = sandbox.stub(Mailer.prototype, 'dispatch')
         .callsArgWith(3, null);
 
       const refs = referrals._sendEmail(sender, recipient, marketing);
-
       expect(refs).to.be.instanceOf(Promise);
       expect(_dispatch.callCount).to.equal(1);
       done();
     });
 
+    it('should reject if error sending email', (done) => {
+      const sender = 'sender@example.com';
+      const recipient = 'recipient@example.com';
+      const marketing = new referrals.storage.models.Marketing({
+        user: 'dylan@storj.io',
+        referralLink: 'abc-123'
+      });
+
+      const err = new errors.BadRequestError('Internal mailer error');
+
+      const _dispatch = sandbox.stub(Mailer.prototype, 'dispatch')
+        .callsArgWith(3, err);
+
+      const refs = referrals._sendEmail(sender, recipient, marketing);
+      console.log('error refs', refs);
+      expect(refs._settledValue).to.be.instanceOf(Error);
+      expect(refs._settledValue.statusCode).to.equal(500);
+      expect(refs._settledValue.message).to.equal('Internal mailer error');
+      expect(refs).to.be.instanceOf(Promise);
+      expect(_dispatch.callCount).to.equal(1);
+      done();
+    });
+  });
+
+  describe('#_createReferral', () => {
+    it('should resolve with referral', (done) => {
+      const mockMarketing = new referrals.models.Marketing({
+        user: 'dylan@storj.io',
+        referralLink: 'abc-123'
+      });
+      const mockReferral = new referrals.storage.models.Referral({
+        sender: {
+          email: 'sender@storj.io',
+          referralLink: 'abc-123',
+          amount_to_credit: 10
+        },
+        recipient: {
+          email: 'recipient@storj.io',
+          amount_to_credit: 10
+        },
+        type: 'email'
+      })
+      const email = 'dylan@storj.io';
+      const _referral = sandbox.stub(referrals.models.Referral, 'create')
+        .returnsPromise();
+      _referral.resolves(mockReferral);
+
+      const refs = referrals._createReferral(mockMarketing, email);
+      expect(_referral.callCount).to.equal(1);
+      console.log('refs', refs);
+      done();
+    });
+
+    it('should throw error if create referral fails', (done) => {
+      const mockMarketing = new referrals.storage.models.Marketing({
+        user: 'dylan@storj.io',
+        referralLink: null
+      });
+      const email = 'dylan@storj.io';
+      const _referral = sandbox.stub(referrals.models.Referral, 'create')
+        .returnsPromise();
+      const err = new errors.BadRequestError('Panic!');
+      _referral.rejects(err);
+      const refs = referrals._createReferral(mockMarketing, email);
+      expect(refs._settledValue.code).to.equal(400);
+      expect(refs._settledValue.message).to.equal('Panic!');
+      expect(refs._settledValue.statusCode).to.equal(400);
+      done();
+    })
   });
 
 });
