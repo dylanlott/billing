@@ -15,6 +15,7 @@ const Storage = require('storj-service-storage-models');
 const defaults = require('../../../lib/config.js').DEFAULTS;
 const mailer = new Mailer(defaults.mailer);
 const Promise = require('bluebird');
+const test = require('tape');
 
 let sandbox;
 
@@ -134,7 +135,7 @@ describe('#referralsRouter', function() {
   });
 
   describe('#sendReferralEmail', () => {
-    it('should return resolve', () => {
+    it('should return resolve', (done) => {
       const mockMarketing = new referrals.storage.models.Marketing({
         user: 'dylan@storj.io',
         referralLink: null
@@ -176,29 +177,82 @@ describe('#referralsRouter', function() {
 
       const _create = sandbox.stub(referrals, '_createReferral')
         .returnsPromise();
-      _create.resolves(mockReferral);
+      _create.resolves();
 
-      res.on('end', () => {
-        expect(res._getData()).to.be.an('object');
-        let data = res._getData();
-        console.log('data', data);
-        expect(1).to.equal(2);
-        console.log('DONE 1');
-        done();
+      res.on('end', function() {
+        setImmediate(() => {
+          const data = res._getData();
+          expect(data.successes.length).to.equal(2);
+          expect(data.failures.length).to.equal(0);
+          expect(res._getData()).to.be.an('object');
+          expect(_create.callCount).to.equal(2);
+          expect(_sendEmail.callCount).to.equal(2);
+          expect(_notCurrent.callCount).to.equal(2);
+
+          done();
+        });
       });
 
       referrals.sendReferralEmail(req, res);
-
-      expect(_create.callCount).to.equal(2);
-      expect(_sendEmail.callCount).to.equal(2);
-      expect(_notCurrent.callCount).to.equal(2);
-      console.log('done 2');
     });
 
     it('should reject if error sending email', (done) => {
+      const mockMarketing = new referrals.storage.models.Marketing({
+        user: 'dylan@storj.io',
+        referralLink: null
+      });
+      const mockReferral = new referrals.storage.models.Referral({
+        sender: {
+          email: 'sender@storj.io',
+          referralLink: 'abc-123',
+          amount_to_credit: 10
+        },
+        recipient: {
+          email: 'recipient@storj.io',
+          amount_to_credit: 10
+        },
+        type: 'email'
+      });
 
-      done();
-    })
-  })
+      const req = httpMocks.createRequest({
+        method: 'POST',
+        url: '/referrals/sendReferralEmail',
+        body: {
+          marketing: mockMarketing,
+          emailList: [ 'dylan@storj.io', 'dylan2@storj.io' ]
+        }
+      });
+      const res = httpMocks.createResponse({
+        eventEmitter: EventEmitter,
+        req: req
+      });
+
+      const _notCurrent = sandbox.stub(referrals, '_isNotCurrentUser')
+        .returnsPromise()
+      _notCurrent.resolves();
+
+      const _sendEmail = sandbox.stub(referrals, '_sendEmail')
+        .returnsPromise();
+      _sendEmail.resolves();
+
+      const err = new errors.BadRequestError('Panic!!');
+
+      const _create = sandbox.stub(referrals, '_createReferral')
+        .returnsPromise();
+      _create.rejects(err);
+
+      res.on('end', () => {
+        setImmediate(() => {
+          const data = res._getData();
+          expect(data.failures.length).to.equal(1);
+          expect(data.successes.length).to.equal(1);
+          expect(data.failures[0].message).to.equal('Panic!!');
+          done();
+        });
+      });
+
+      referrals.sendReferralEmail(req, res);
+    });
+  });
 
 });
