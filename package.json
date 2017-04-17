@@ -18,7 +18,7 @@
     "start-dev": "NODE_ENV=develop nodemon ./bin/storj-billing.js",
     "start-prod": "NODE_ENV=production node ./bin/storj-billing.js",
     "start-importer": "NODE_ENV=production node ./bin/billing-queries.js",
-    "test": "npm run testsuite"
+    "test": "npm run testsuite && npm run linter"
   },
   "repository": {
     "type": "git",
